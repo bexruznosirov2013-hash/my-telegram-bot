@@ -11,7 +11,7 @@ import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8869344185:AAEoxcxhCm2mi9SPpLYmWKqkAQi5nf7UC6s"
-GEMINI_API_KEY = "AQ.Ab8RN6K11AcJurYlVIVm8BCxj5Gh17xc1pBkG7pjNeh_gnMBBQ"  # <-- aistudio.google.com dan olgan yangi kalitingizni shu yerga qo'ying!
+GEMINI_API_KEY = "AQ.Ab8RN6K11AcJurYlVIVm8BCxj5Gh17xc1pBkG7pjNeh_gnMBBQ"  # <-- AI Studio'dan olgan yangi kalitingiz!
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -26,7 +26,7 @@ class QuizState(StatesGroup):
 
 # ================= HANDLERLAR =================
 
-# /start va /restart buyruqlari bir xil ishlaydi
+# /start va /restart buyruqlari
 @router.message(Command("start", "restart"))
 async def start_cmd(message: Message, state: FSMContext):
     await state.clear()
@@ -41,6 +41,8 @@ async def start_cmd(message: Message, state: FSMContext):
 @router.message(QuizState.waiting_for_pages)
 async def process_pages(message: Message, state: FSMContext):
     pages = message.text.strip()
+    await state.clear()  # Xatolik va cheksiz qaytarilishning oldini olish uchun FSM holatini tozalaymiz
+    
     await message.answer("⏳ Gemini AI test tayyorlamoqda, biroz kuting...")
     
     prompt = f"""
@@ -52,13 +54,11 @@ async def process_pages(message: Message, state: FSMContext):
         response = model.generate_content(prompt)
         await message.answer(response.text)
     except Exception as e:
-        await message.answer(f"Xatolik yuz berdi: {e}")
-    
-    await state.clear()
+        await message.answer(f"⚠️ Xatolik yuz berdi. Gemini API kalitingizni tekshiring!\n\nXatolik matni: {e}")
 
 # ================= AIOHTTP WEB SERVER (RENDER UCHUN) =================
 async def handle_ping(request):
-    return web.Response(text="Bot is running live!")
+    return web.Response(text="Bot live holatda ishlamoqda!")
 
 async def start_web_server():
     app = web.Application()
@@ -72,6 +72,8 @@ async def start_web_server():
 
 async def main():
     await start_web_server()
+    # Webhook hamda eski getUpdates so'rovlarini tozalab tashlash (Conflict harakatlarini to'xtatadi)
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
