@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -89,8 +90,23 @@ async def generate_quiz(message: types.Message, state: FSMContext):
     
     await state.clear()
 
+# Render port talabini qondirish uchun kichik veb-server
+async def handle(request):
+    return web.Response(text="Bot is running!")
+
+async def web_server():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
 async def main():
-    print("AI-Test Bot ishga tushdi...")
+    # Veb-server va botni birga ishga tushirish
+    await web_server()
+    print("AI-Test Bot va Veb-server ishga tushdi...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
