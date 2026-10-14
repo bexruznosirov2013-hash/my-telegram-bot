@@ -1,112 +1,77 @@
 import os
 import asyncio
-import logging
-from aiohttp import web
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart
+from aiogram import Bot, Dispatcher, F, Router
+from aiogram.types import Message
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from google import genai
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp import web
+import google.generativeai as genai
 
+# ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8869344185:AAEoxcxhCm2mi9SPpLYmWKqkAQi5nf7UC6s"
-GEMINI_API_KEY = "AQ.Ab8RN6K11AcJurYlVIVm8BCxj5Gh17xc1pBkG7pjNeh_gnMBBQ"
+GEMINI_API_KEY = "AQ.Ab8RN6K11AcJurYlVIVm8BCxj5Gh17xc1pBkG7pjNeh_gnMBBQ"  # <-- aistudio.google.com dan olgan yangi kalitingizni shu yerga qo'ying!
 
-ai_client = genai.Client(api_key=GEMINI_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
+
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(storage=MemoryStorage())
+router = Router()
+dp.include_router(router)
 
-class QuizForm(StatesGroup):
-    waiting_for_class = State()
+class QuizState(StatesGroup):
     waiting_for_pages = State()
 
-def get_classes_keyboard():
-    buttons = []
-    row = []
-    for i in range(1, 12):
-        row.append(InlineKeyboardButton(text=f"{i}-sinf", callback_data=f"class_{i}"))
-        if len(row) == 3:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+# ================= HANDLERLAR =================
 
-@dp.message(CommandStart())
-async def start_cmd(message: types.Message, state: FSMContext):
+# /start va /restart buyruqlari bir xil ishlaydi
+@router.message(Command("start", "restart"))
+async def start_cmd(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer(
-        "Assalomu alaykum! Texnologiya fanidan AI-Test generator botiga xush kelibsiz.\n\n"
-        "Qaysi sinf Texnologiya kitobidan test tuzmoqchisiz? Tanlang:",
-        reply_markup=get_classes_keyboard()
-    )
-    await state.set_state(QuizForm.waiting_for_class)
-
-@dp.callback_query(F.data.startswith("class_"), QuizForm.waiting_for_class)
-async def process_class(call: types.CallbackQuery, state: FSMContext):
-    class_num = call.data.split("_")[1]
-    await state.update_data(selected_class=class_num)
+    await state.set_state(QuizState.waiting_for_pages)
     
-    await call.message.edit_text(
-        f"Siz **{class_num}-sinf** Texnologiya kitobini tanladingiz.\n\n"
-        f"Endi kitobning qaysi sahifalaridan test tuzay? (Masalan: `20-30` deb yozib yuboring):",
-        parse_mode="Markdown"
+    txt = (
+        "Siz 7-sinf Texnologiya kitobini tanladingiz.\n\n"
+        "Endi kitobning qaysi sahifalaridan test tuzay? (Masalan: 20-30 deb yozib yuboring):"
     )
-    await state.set_state(QuizForm.waiting_for_pages)
+    await message.answer(txt)
 
-@dp.message(QuizForm.waiting_for_pages)
-async def generate_quiz(message: types.Message, state: FSMContext):
-    user_data = await state.get_data()
-    selected_class = user_data.get("selected_class")
-    pages = message.text
-
-    wait_msg = await message.answer("Sun'iy intellekt darslik ma'lumotlarini tahlil qilib, 15 talik test tuzmoqda... Iltimos, kutib turing...")
-
-    prompt = (
-        f"Maktab darsligi: {selected_class}-sinf Texnologiya fani.\n"
-        f"O'qilgan sahifalar: {pages}-betlar.\n"
-        f"Topshiriq: Ushbu sinf va sahifalarga tegishli Texnologiya darsligi mavzulari va bilimlaridan kelib chiqib, "
-        f"o'quvchini sinash uchun 15 ta ko'p tanlovli (A, B, C, D variantli) test tuzib ber. "
-        f"Har bir savol ostida to'g'ri javobni ham ko'rsat. O'zbek tilida ravon bo'lsin."
-    )
-
+@router.message(QuizState.waiting_for_pages)
+async def process_pages(message: Message, state: FSMContext):
+    pages = message.text.strip()
+    await message.answer("⏳ Gemini AI test tayyorlamoqda, biroz kuting...")
+    
+    prompt = f"""
+    Siz maktab o'qituvchisisiz. 7-sinf Texnologiya darsligining {pages}-sahifalari bo'yicha 3 ta ko'p tanlovli (A, B, C, D) test savoli tuzing. 
+    Javoblardan biri to'g'ri bo'lsin va oxirida to'g'ri javoblarni ko'rsating.
+    """
+    
     try:
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
-
-        quiz_text = response.text
-        await wait_msg.delete()
-        
-        if len(quiz_text) > 4000:
-            for x in range(0, len(quiz_text), 4000):
-                await message.answer(quiz_text[x:x+4000])
-        else:
-            await message.answer(f"**{selected_class}-sinf Texnologiya ({pages}-betlar) bo'yicha 15 talik test:**\n\n{quiz_text}", parse_mode="Markdown")
-
+        response = model.generate_content(prompt)
+        await message.answer(response.text)
     except Exception as e:
-        await wait_msg.edit_text(f"Xatolik yuz berdi: {e}")
+        await message.answer(f"Xatolik yuz berdi: {e}")
     
     await state.clear()
 
-# Render port talabini qondirish uchun kichik veb-server
-async def handle(request):
-    return web.Response(text="Bot is running!")
+# ================= AIOHTTP WEB SERVER (RENDER UCHUN) =================
+async def handle_ping(request):
+    return web.Response(text="Bot is running live!")
 
-async def web_server():
+async def start_web_server():
     app = web.Application()
-    app.router.add_get("/", handle)
+    app.router.add_get('/', handle_ping)
+    app.router.add_get('/health', handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.getenv("PORT", 10000))
+    port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
 async def main():
-    # Veb-server va botni birga ishga tushirish
-    await web_server()
-    print("AI-Test Bot va Veb-server ishga tushdi...")
+    await start_web_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
