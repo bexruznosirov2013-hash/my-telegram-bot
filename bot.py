@@ -9,7 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from google import genai
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8788186918:AAEvTUO2wdaD4T2aBh4gtOQ3Ih3mQJk8tSM")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6Le06izit3fRf49UEstZu8Nzq-4EJ9AGQwVHvPNEmVoRQ")
+GEMINI_API_KEY = "AQ.Ab8RN6LDVXUrqKAFJx44BR46-F2Y5rOjuKdLgrwT0lBSihWeyg"
 
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 bot = Bot(token=BOT_TOKEN)
