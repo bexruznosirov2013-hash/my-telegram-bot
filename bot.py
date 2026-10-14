@@ -1,7 +1,7 @@
 import os
 import asyncio
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -11,7 +11,7 @@ import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8869344185:AAEoxcxhCm2mi9SPpLYmWKqkAQi5nf7UC6s"
-GEMINI_API_KEY = "AQ.Ab8RN6K11AcJurYlVIVm8BCxj5Gh17xc1pBkG7pjNeh_gnMBBQ"  # <-- AI Studio'dan olgan yangi kalitingiz!
+GEMINI_API_KEY = "AQ.Ab8RN6KjsR4PNtfpKCBtKOlc0zEwfw1XHPvjG1DU09TNzXJLvQ"  # <-- AI Studio'dan olgan yangi kalitingizni shu yerga yozing!
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -21,40 +21,142 @@ dp = Dispatcher(storage=MemoryStorage())
 router = Router()
 dp.include_router(router)
 
+# FSM Holatlari
 class QuizState(StatesGroup):
-    waiting_for_pages = State()
+    choosing_subject = State()
+    choosing_grade = State()
+    choosing_count = State()
+    generating = State()
+
+# ================= KLAVIATURALAR =================
+
+def get_subjects_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📐 Matematika", callback_data="sub_Matematika"), InlineKeyboardButton(text="📚 Ona tili", callback_data="sub_Ona tili")],
+        [InlineKeyboardButton(text="🧪 Biologiya", callback_data="sub_Biologiya"), InlineKeyboardButton(text="⚡ Fizika", callback_data="sub_Fizika")],
+        [InlineKeyboardButton(text="🌍 Jahon Tarixi", callback_data="sub_Jahon Tarixi"), InlineKeyboardButton(text="🇺🇿 O'zbekiston Tarixi", callback_data="sub_O'zbekiston Tarixi")],
+        [InlineKeyboardButton(text="📐 Geometriya", callback_data="sub_Geometriya"), InlineKeyboardButton(text="🎵 Musiqa", callback_data="sub_Musiqa")],
+        [InlineKeyboardButton(text="🇬🇧 Ingliz tili", callback_data="sub_Ingliz tili")]
+    ])
+    return keyboard
+
+def get_grades_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="7-sinf", callback_data="grade_7"),
+            InlineKeyboardButton(text="8-sinf", callback_data="grade_8"),
+            InlineKeyboardButton(text="9-sinf", callback_data="grade_9")
+        ],
+        [
+            InlineKeyboardButton(text="10-sinf", callback_data="grade_10"),
+            InlineKeyboardButton(text="11-sinf", callback_data="grade_11")
+        ]
+    ])
+    return keyboard
+
+def get_counts_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="5 ta", callback_data="count_5"),
+            InlineKeyboardButton(text="10 ta", callback_data="count_10")
+        ],
+        [
+            InlineKeyboardButton(text="15 ta", callback_data="count_15"),
+            InlineKeyboardButton(text="20 ta", callback_data="count_20")
+        ]
+    ])
+    return keyboard
 
 # ================= HANDLERLAR =================
 
-# /start va /restart buyruqlari
 @router.message(Command("start", "restart"))
 async def start_cmd(message: Message, state: FSMContext):
     await state.clear()
-    await state.set_state(QuizState.waiting_for_pages)
-    
-    txt = (
-        "Siz 7-sinf Texnologiya kitobini tanladingiz.\n\n"
-        "Endi kitobning qaysi sahifalaridan test tuzay? (Masalan: 20-30 deb yozib yuboring):"
+    await state.set_state(QuizState.choosing_subject)
+    await message.answer(
+        "👋 Assalomu alaykum! Maktab fanlaridan sun'iy intellekt yordamida test tuzuvchi botga xush kelibsiz.\n\n"
+        "Quyidagi fanlardan birini tanlang:",
+        reply_markup=get_subjects_keyboard()
     )
-    await message.answer(txt)
 
-@router.message(QuizState.waiting_for_pages)
-async def process_pages(message: Message, state: FSMContext):
-    pages = message.text.strip()
-    await state.clear()  # Xatolik va cheksiz qaytarilishning oldini olish uchun FSM holatini tozalaymiz
+@router.callback_query(F.data.startswith("sub_"), QuizState.choosing_subject)
+async def process_subject(callback: CallbackQuery, state: FSMContext):
+    subject = callback.data.split("_", 1)[1]
+    await state.update_data(subject=subject)
+    await state.set_state(QuizState.choosing_grade)
     
-    await message.answer("⏳ Gemini AI test tayyorlamoqda, biroz kuting...")
+    await callback.message.edit_text(
+        f"✅ Tanlangan fan: **{subject}**\n\nEndi o'quvchi sinfini tanlang:",
+        reply_markup=get_grades_keyboard(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("grade_"), QuizState.choosing_grade)
+async def process_grade(callback: CallbackQuery, state: FSMContext):
+    grade = callback.data.split("_")[1]
+    await state.update_data(grade=grade)
+    await state.set_state(QuizState.choosing_count)
+    
+    data = await state.get_data()
+    await callback.message.edit_text(
+        f"✅ Fan: {data['subject']} | Sinf: {grade}-sinf\n\nNechta test savoli tuzish kerak?",
+        reply_markup=get_counts_keyboard()
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("count_"), QuizState.choosing_count)
+async def process_count(callback: CallbackQuery, state: FSMContext):
+    count = callback.data.split("_")[1]
+    await state.update_data(count=count)
+    await state.set_state(QuizState.generating)
+    
+    data = await state.get_data()
+    subject = data['subject']
+    grade = data['grade']
+    
+    await callback.message.edit_text(f"⏳ Gemini AI {grade}-sinf **{subject}** fanidan {count} ta test tayyorlamoqda, biroz kuting...", parse_mode="Markdown")
     
     prompt = f"""
-    Siz maktab o'qituvchisisiz. 7-sinf Texnologiya darsligining {pages}-sahifalari bo'yicha 3 ta ko'p tanlovli (A, B, C, D) test savoli tuzing. 
-    Javoblardan biri to'g'ri bo'lsin va oxirida to'g'ri javoblarni ko'rsating.
+    Siz professional maktab o'qituvchisisiz. 
+    {grade}-sinf "{subject}" fanidan o'quvchilar uchun {count} ta ko'p tanlovli (A, B, C, D variantli) test savolini tuzing.
+    Har bir savol ostida variantlar ko'rsatilsin.
+    Testning oxirida barcha savollarning to'g'ri javoblarini kalit shaklida va qisqacha tushuntirishi bilan birga aniq yozib bering.
+    O'zbek tilida mukammal va tushunarli formatda chiqaring.
     """
     
     try:
         response = model.generate_content(prompt)
-        await message.answer(response.text)
+        test_text = response.text
+        
+        # Xabar uzunligi Telegram limitidan oshib ketmasligi uchun bo'lib yuborish
+        if len(test_text) > 4000:
+            for i in range(0, len(test_text), 4000):
+                await callback.message.answer(test_text[i:i+4000])
+        else:
+            await callback.message.answer(test_text)
+            
+        await callback.message.answer(
+            "Yangi test tuzish uchun /start yoki /restart buyrug'ini bosing.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Yana test tuzish", callback_data="restart_quiz")]
+            ])
+        )
     except Exception as e:
-        await message.answer(f"⚠️ Xatolik yuz berdi. Gemini API kalitingizni tekshiring!\n\nXatolik matni: {e}")
+        await callback.message.answer(f"⚠️ Xatolik yuz berdi. API kalitingizni tekshiring!\n\nXato: {e}")
+    
+    await state.clear()
+    await callback.answer()
+
+@router.callback_query(F.data == "restart_quiz")
+async def restart_inline(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await state.set_state(QuizState.choosing_subject)
+    await callback.message.answer(
+        "Quyidagi fanlardan birini tanlang:",
+        reply_markup=get_subjects_keyboard()
+    )
+    await callback.answer()
 
 # ================= AIOHTTP WEB SERVER (RENDER UCHUN) =================
 async def handle_ping(request):
@@ -72,7 +174,7 @@ async def start_web_server():
 
 async def main():
     await start_web_server()
-    # Webhook hamda eski getUpdates so'rovlarini tozalab tashlash (Conflict harakatlarini to'xtatadi)
+    # Eski so'rovlarni tozalash (konflikt va cheksiz xabarlarni oldini oladi)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
