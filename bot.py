@@ -11,7 +11,7 @@ import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8869344185:AAEoxcxhCm2mi9SPpLYmWKqkAQi5nf7UC6s"
-GEMINI_API_KEY = "AQ.Ab8RN6KjsR4PNtfpKCBtKOlc0zEwfw1XHPvjG1DU09TNzXJLvQ"  # <-- AI Studio'dan olgan yangi kalitingizni shu yerga yozing!
+GEMINI_API_KEY = "AQ.Ab8RN6KjsR4PNtfpKCBtKOlc0zEwfw1XHPvjG1DU09TNzXJLvQ"  # <-- aistudio.google.com dan olgan YANGI kalitingizni shu yerga yozing!
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -32,23 +32,27 @@ class QuizState(StatesGroup):
 
 def get_subjects_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📐 Matematika", callback_data="sub_Matematika"), InlineKeyboardButton(text="📚 Ona tili", callback_data="sub_Ona tili")],
-        [InlineKeyboardButton(text="🧪 Biologiya", callback_data="sub_Biologiya"), InlineKeyboardButton(text="⚡ Fizika", callback_data="sub_Fizika")],
-        [InlineKeyboardButton(text="🌍 Jahon Tarixi", callback_data="sub_Jahon Tarixi"), InlineKeyboardButton(text="🇺🇿 O'zbekiston Tarixi", callback_data="sub_O'zbekiston Tarixi")],
-        [InlineKeyboardButton(text="📐 Geometriya", callback_data="sub_Geometriya"), InlineKeyboardButton(text="🎵 Musiqa", callback_data="sub_Musiqa")],
-        [InlineKeyboardButton(text="🇬🇧 Ingliz tili", callback_data="sub_Ingliz tili")]
+        [InlineKeyboardButton(text="🛠 Texnologiya", callback_data="sub_Texnologiya"), InlineKeyboardButton(text="📐 Matematika", callback_data="sub_Matematika")],
+        [InlineKeyboardButton(text="📚 Ona tili", callback_data="sub_Ona tili"), InlineKeyboardButton(text="🧪 Biologiya", callback_data="sub_Biologiya")],
+        [InlineKeyboardButton(text="⚡ Fizika", callback_data="sub_Fizika"), InlineKeyboardButton(text="🌍 Jahon Tarixi", callback_data="sub_Jahon Tarixi")],
+        [InlineKeyboardButton(text="🇺🇿 O'zbekiston Tarixi", callback_data="sub_O'zbekiston Tarixi"), InlineKeyboardButton(text="📐 Geometriya", callback_data="sub_Geometriya")],
+        [InlineKeyboardButton(text="🎵 Musiqa", callback_data="sub_Musiqa"), InlineKeyboardButton(text="🇬🇧 Ingliz tili", callback_data="sub_Ingliz tili")]
     ])
     return keyboard
 
 def get_grades_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="7-sinf", callback_data="grade_7"),
-            InlineKeyboardButton(text="8-sinf", callback_data="grade_8"),
-            InlineKeyboardButton(text="9-sinf", callback_data="grade_9")
+            InlineKeyboardButton(text="5-sinf", callback_data="grade_5"),
+            InlineKeyboardButton(text="6-sinf", callback_data="grade_6"),
+            InlineKeyboardButton(text="7-sinf", callback_data="grade_7")
         ],
         [
-            InlineKeyboardButton(text="10-sinf", callback_data="grade_10"),
+            InlineKeyboardButton(text="8-sinf", callback_data="grade_8"),
+            InlineKeyboardButton(text="9-sinf", callback_data="grade_9"),
+            InlineKeyboardButton(text="10-sinf", callback_data="grade_10")
+        ],
+        [
             InlineKeyboardButton(text="11-sinf", callback_data="grade_11")
         ]
     ])
@@ -120,7 +124,7 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
     prompt = f"""
     Siz professional maktab o'qituvchisisiz. 
     {grade}-sinf "{subject}" fanidan o'quvchilar uchun {count} ta ko'p tanlovli (A, B, C, D variantli) test savolini tuzing.
-    Har bir savol ostida variantlar ko'rsatilsin.
+    Har bir savol ostida variantlar aniq ko'rsatilsin.
     Testning oxirida barcha savollarning to'g'ri javoblarini kalit shaklida va qisqacha tushuntirishi bilan birga aniq yozib bering.
     O'zbek tilida mukammal va tushunarli formatda chiqaring.
     """
@@ -137,13 +141,13 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
             await callback.message.answer(test_text)
             
         await callback.message.answer(
-            "Yangi test tuzish uchun /start yoki /restart buyrug'ini bosing.",
+            "Yangi test tuzish uchun tugmani bosing:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔄 Yana test tuzish", callback_data="restart_quiz")]
             ])
         )
     except Exception as e:
-        await callback.message.answer(f"⚠️ Xatolik yuz berdi. API kalitingizni tekshiring!\n\nXato: {e}")
+        await callback.message.answer(f"⚠️ Xatolik yuz berdi. Gemini API kalitingiz noto'g'ri yoki tugagan!\n\nXato: {e}")
     
     await state.clear()
     await callback.answer()
@@ -174,7 +178,6 @@ async def start_web_server():
 
 async def main():
     await start_web_server()
-    # Eski so'rovlarni tozalash (konflikt va cheksiz xabarlarni oldini oladi)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
