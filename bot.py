@@ -8,13 +8,11 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.exceptions import TelegramBadRequest
 from aiohttp import web
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8995479536:AAEkjDyAB_JsFmkQZ5jvEvmNaVxL897Dqi4"
-# Google AI Studio orqali olingan kalitingizni shu yerga yozing
-GEMINI_API_KEY = "AQ.Ab8RN6LisjWLkSUx2d6AxvDpBxFudWJbCZ0R_x9b0QOKGf5JnQ"
+GEMINI_API_KEY = "AQ.Ab8RN6KVvn9jWSaeXqO15La6LnGls9AXm5d1T5lZ1-iy1v1SUg"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -70,12 +68,15 @@ def get_counts_keyboard():
             InlineKeyboardButton(text="10 ta", callback_data="count_10")
         ],
         [
-            InlineKeyboardButton(text="🔙 Orqaga", callback_data="start_quiz")]
+            InlineKeyboardButton(text="15 ta", callback_data="count_15"),
+            InlineKeyboardButton(text="20 ta", callback_data="count_20")
+        ],
+        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="start_quiz")]
     ])
 
-# ================= GEMINI API ORQALI JSON FORMATDA SAVOL OLISH =================
+# ================= GEMINI API BILAN BOG'LANISH =================
 async def generate_quiz_questions(subject: str, grade: str, count: str):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
     headers = {
         "Content-Type": "application/json",
         "X-goog-api-key": GEMINI_API_KEY
@@ -83,7 +84,7 @@ async def generate_quiz_questions(subject: str, grade: str, count: str):
     
     prompt = f"""
     Siz professional maktab o'qituvchisisiz. {grade}-sinf "{subject}" fanidan o'quvchilar uchun {count} ta test tuzing.
-    Javobni FAQAT quyidagi JSON formatda qaytaring, hech qanday qo'shimcha matn yoki markdown belgilarisiz (`json` so'zini ham yozmang):
+    Javobni FAQAT quyidagi JSON formatida qaytaring, boshqa hech qanday so'z yoki markdown belgi yozmang:
     [
       {{
         "question": "Savol matni?",
@@ -91,7 +92,7 @@ async def generate_quiz_questions(subject: str, grade: str, count: str):
         "correct_index": 0
       }}
     ]
-    "correct_index" — to'g'ri javobning "options" massividagi indeksi (0 dan 3 gacha). Variantlar soni aniq 4 ta bo'lsin.
+    "correct_index" — to'g'ri javobning "options" massividagi indeksi (0 dan 3 gacha). Variantlar aniq 4 ta bo'lsin.
     """
     
     payload = {
@@ -110,11 +111,10 @@ async def generate_quiz_questions(subject: str, grade: str, count: str):
                 data = await response.json()
                 try:
                     raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    # JSON formatini tozalash
                     clean_text = raw_text.replace("```json", "").replace("```", "").strip()
                     return json.loads(clean_text)
                 except Exception as e:
-                    print(f"Parsing xatoligi: {e}")
+                    print(f"Xatolik: {e}")
                     return None
             else:
                 return None
@@ -252,7 +252,7 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
                 correct_option_id=q["correct_index"],
                 is_anonymous=False
             )
-            await asyncio.sleep(0.5) # Telegram limitlariga tushmaslik uchun kichik tanaffus
+            await asyncio.sleep(0.5)
         except Exception as e:
             print(f"Poll yuborishda xato: {e}")
             
