@@ -10,7 +10,9 @@ from aiohttp import web
 import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
+# O'zingizning to'g'ri bot tokeningizni yozing:
 BOT_TOKEN = "8869344185:AAEoxcxhCm2mi9SPpLYmWKqkAQi5nf7UC6s"
+# Siz bergan yangi Gemini API kaliti:
 GEMINI_API_KEY = "AQ.Ab8RN6KnxIxtgGsURf4tzNFb62S92j78Xaidw64y1rZdXGVHrA"
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -177,6 +179,7 @@ async def start_web_server():
 
 async def main():
     await start_web_server()
+    # Eski xabarlar oqimini tozalash va ziddiyatni oldini olish
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
