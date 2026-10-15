@@ -11,9 +11,10 @@ import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8995479536:AAEkjDyAB_JsFmkQZ5jvEvmNaVxL897Dqi4"
-GEMINI_API_KEY = "AQ.Ab8RN6LdIolroDQpviPPWybZPsstGDCaWKpDyXC9d1o699nNlQ"
+GEMINI_API_KEY = "AQ.Ab8RN6LdIolroDQpviPPWybZPsstGDCaWKpDyXC9d1o699nNlQ" # O'zingizning to'g'ri Google AI Studio API kalitingizni shu yerga yozing
 
 genai.configure(api_key=GEMINI_API_KEY)
+# To'g'ri va barqaror ishlaydigan model nomi
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 bot = Bot(token=BOT_TOKEN)
@@ -27,17 +28,16 @@ class QuizState(StatesGroup):
     choosing_count = State()
     generating = State()
 
-# ================= MENYULAR (FULL UI) =================
+# ================= MENYULAR =================
 
 def get_main_menu():
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Test Tuzishni Boshlash", callback_data="start_quiz")],
-        [InlineKeyboardButton(text="ℹ️ Bot haqida", callback_data="about_bot"), InlineKeyboardButton(text="📞 Aloqa", callback_data="contact_admin")]
+        [InlineKeyboardButton(text="ℹ️ Yordam / Help", callback_data="help_menu"), InlineKeyboardButton(text="📞 Aloqa", callback_data="contact_admin")]
     ])
-    return keyboard
 
 def get_subjects_keyboard():
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛠 Texnologiya", callback_data="sub_Texnologiya"), InlineKeyboardButton(text="📐 Matematika", callback_data="sub_Matematika")],
         [InlineKeyboardButton(text="📚 Ona tili", callback_data="sub_Ona tili"), InlineKeyboardButton(text="🧪 Biologiya", callback_data="sub_Biologiya")],
         [InlineKeyboardButton(text="⚡ Fizika", callback_data="sub_Fizika"), InlineKeyboardButton(text="🌍 Jahon Tarixi", callback_data="sub_Jahon Tarixi")],
@@ -45,10 +45,9 @@ def get_subjects_keyboard():
         [InlineKeyboardButton(text="🎵 Musiqa", callback_data="sub_Musiqa"), InlineKeyboardButton(text="🇬🇧 Ingliz tili", callback_data="sub_Ingliz tili")],
         [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")]
     ])
-    return keyboard
 
 def get_grades_keyboard():
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="5-sinf", callback_data="grade_5"),
             InlineKeyboardButton(text="6-sinf", callback_data="grade_6"),
@@ -64,10 +63,9 @@ def get_grades_keyboard():
         ],
         [InlineKeyboardButton(text="🔙 Orqaga", callback_data="start_quiz")]
     ])
-    return keyboard
 
 def get_counts_keyboard():
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="5 ta", callback_data="count_5"),
             InlineKeyboardButton(text="10 ta", callback_data="count_10")
@@ -78,7 +76,6 @@ def get_counts_keyboard():
         ],
         [InlineKeyboardButton(text="🔙 Orqaga", callback_data="start_quiz")]
     ])
-    return keyboard
 
 # ================= HANDLERLAR =================
 
@@ -86,19 +83,46 @@ def get_counts_keyboard():
 async def start_cmd(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "✨ **Assalomu alaykum! Maktab fanlaridan eng mukammal va qulay AI Test Botiga xush kelibsiz.**\n\n"
-        "Bu yerda siz istalgan fan va sinf bo'yicha professional darajada testlar tuzishingiz mumkin.\n"
-        "Quyidagi tugmani bosing:",
+        "✨ **Assalomu alaykum! Maktab fanlaridan sun'iy intellekt yordamida test tuzuvchi professional botga xush kelibsiz.**\n\n"
+        "Kerakli bo'limni tanlang:",
         reply_markup=get_main_menu(),
         parse_mode="Markdown"
     )
+
+@router.message(Command("help"))
+async def help_cmd(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "ℹ️ **Bot haqida ma'lumot (Help):**\n\n"
+        "Ushbu bot maktab o'quvchilari va o'qituvchilari uchun mo'ljallangan. "
+        "Google Gemini AI texnologiyasi yordamida istalgan fan va sinf uchun sifatli testlar hamda ularning javoblar kalitini tuzib beradi.\n\n"
+        "**Buyruqlar:**\n"
+        "/start - Botni qayta ishga tushirish\n"
+        "/restart - Asosiy menyuga qaytish\n"
+        "/help - Yordam va ma'lumot olish",
+        reply_markup=get_main_menu(),
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "help_menu")
+async def help_cb(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "ℹ️ **Bot haqida ma'lumot:**\n\n"
+        "Ushbu bot maktab o'quvchilari va o'qituvchilari uchun mo'ljallangan. "
+        "Google Gemini AI texnologiyasi yordamida istalgan fan va sinf uchun sifatli testlar hamda ularning javoblar kalitini tuzib beradi.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")]
+        ]),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
 
 @router.callback_query(F.data == "start_quiz")
 async def start_quiz_cb(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_state(QuizState.choosing_subject)
     await callback.message.edit_text(
-        "📚 **Fanlardan birini tanlang:**",
+        "📚 **Test tuzish uchun fanni tanlang:**",
         reply_markup=get_subjects_keyboard(),
         parse_mode="Markdown"
     )
@@ -114,23 +138,10 @@ async def back_to_main_cb(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-@router.callback_query(F.data == "about_bot")
-async def about_cb(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "ℹ️ **Bot haqida:**\n\n"
-        "Ushbu bot o'quvchilar va o'qituvchilar uchun maxsus Google Gemini AI texnologiyasi asosida yaratilgan. "
-        "Barcha maktab fanlari va sinflari uchun sifatli testlar tuzib beradi.",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")]
-        ]),
-        parse_mode="Markdown"
-    )
-    await callback.answer()
-
 @router.callback_query(F.data == "contact_admin")
 async def contact_cb(callback: CallbackQuery):
     await callback.message.edit_text(
-        "📞 **Aloqa:**\n\nSavol va takliflar bo'yicha adminstratorga murojaat qiling.",
+        "📞 **Aloqa:**\n\nSavol va takliflar bo'yicha administratorga murojaat qilishingiz mumkin.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")]
         ]),
@@ -145,7 +156,7 @@ async def process_subject(callback: CallbackQuery, state: FSMContext):
     await state.set_state(QuizState.choosing_grade)
     
     await callback.message.edit_text(
-        f"✅ Tanlangan fan: **{subject}**\n\n🎓 Endi o'quvchi sinfini tanlang:",
+        f"✅ Tanlangan fan: **{subject}**\n\n🎓 Endi sinfni tanlang:",
         reply_markup=get_grades_keyboard(),
         parse_mode="Markdown"
     )
@@ -159,7 +170,7 @@ async def process_grade(callback: CallbackQuery, state: FSMContext):
     
     data = await state.get_data()
     await callback.message.edit_text(
-        f"✅ Fan: {data['subject']} | Sinf: {grade}-sinf\n\n🔢 Nechta test savoli tuzish kerak?",
+        f"✅ Fan: {data['subject']} | Sinf: {grade}-sinf\n\n🔢 Nechta test savoli kerak?",
         reply_markup=get_counts_keyboard(),
         parse_mode="Markdown"
     )
@@ -176,16 +187,16 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
     grade = data['grade']
     
     await callback.message.edit_text(
-        f"⏳ **Gemini AI** {grade}-sinf **{subject}** fanidan {count} ta test tayyorlamoqda, iltimos biroz kuting...",
+        f"⏳ **Gemini AI** {grade}-sinf **{subject}** fanidan {count} ta test tayyorlamoqda, biroz kuting...",
         parse_mode="Markdown"
     )
     
     prompt = f"""
-    Siz professional va tajribali maktab o'qituvchisisiz. 
-    {grade}-sinf "{subject}" fanidan o'quvchilar uchun {count} ta ko'p tanlovli (A, B, C, D variantli) yuqori sifatli test savolini tuzing.
+    Siz professional maktab o'qituvchisisiz. 
+    {grade}-sinf "{subject}" fanidan o'quvchilar uchun {count} ta ko'p tanlovli (A, B, C, D variantli) test savolini tuzing.
     Har bir savol ostida variantlar aniq ko'rsatilsin.
     Testning oxirida barcha savollarning to'g'ri javoblarini kalit shaklida va qisqacha tushuntirishi bilan birga aniq yozib bering.
-    O'zbek tilida mukammal, xatosiz va chiroyli formatda chiqaring.
+    O'zbek tilida mukammal va tushunarli formatda chiqaring.
     """
     
     try:
@@ -199,14 +210,20 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
             await callback.message.answer(test_text)
             
         await callback.message.answer(
-            "🎉 **Test muvaffaqiyatli tuzildi!**\nYangi test boshlash uchun quyidagi tugmani bosing:",
+            "🎉 **Test muvaffaqiyatli tuzildi!**",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Yana test tuzish", callback_data="start_quiz")]
+                [InlineKeyboardButton(text="🔄 Yana test tuzish", callback_data="start_quiz")],
+                [InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="back_to_main")]
             ]),
             parse_mode="Markdown"
         )
     except Exception as e:
-        await callback.message.answer(f"⚠️ Xatolik yuz berdi: {e}")
+        await callback.message.answer(
+            f"⚠️ Xatolik yuz berdi: {e}\nIltimos, API kalitingiz to'g'riligini tekshiring.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="back_to_main")]
+            ])
+        )
     
     await state.clear()
     await callback.answer()
