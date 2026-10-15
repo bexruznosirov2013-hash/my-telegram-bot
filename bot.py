@@ -133,7 +133,6 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
         response = model.generate_content(prompt)
         test_text = response.text
         
-        # Xabar uzunligi Telegram limitidan oshib ketmasligi uchun bo'lib yuborish
         if len(test_text) > 4000:
             for i in range(0, len(test_text), 4000):
                 await callback.message.answer(test_text[i:i+4000])
@@ -147,7 +146,7 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
             ])
         )
     except Exception as e:
-        await callback.message.answer(f"⚠️ Xatolik yuz berdi. Gemini API kalitingiz noto'g'ri yoki tugagan!\n\nXato: {e}")
+        await callback.message.answer(f"⚠️ Xatolik yuz berdi: {e}")
     
     await state.clear()
     await callback.answer()
