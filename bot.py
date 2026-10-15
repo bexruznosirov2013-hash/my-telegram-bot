@@ -10,9 +10,7 @@ from aiohttp import web
 import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
-# O'zingizning to'g'ri bot tokeningizni yozing:
 BOT_TOKEN = "8869344185:AAEoxcxhCm2mi9SPpLYmWKqkAQi5nf7UC6s"
-# Siz bergan yangi Gemini API kaliti:
 GEMINI_API_KEY = "AQ.Ab8RN6KnxIxtgGsURf4tzNFb62S92j78Xaidw64y1rZdXGVHrA"
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -23,15 +21,13 @@ dp = Dispatcher(storage=MemoryStorage())
 router = Router()
 dp.include_router(router)
 
-# FSM Holatlari
 class QuizState(StatesGroup):
     choosing_subject = State()
     choosing_grade = State()
     choosing_count = State()
     generating = State()
 
-# ================= KLAVIATURALAR =================
-
+# Fanlar menyusi
 def get_subjects_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛠 Texnologiya", callback_data="sub_Texnologiya"), InlineKeyboardButton(text="📐 Matematika", callback_data="sub_Matematika")],
@@ -72,8 +68,6 @@ def get_counts_keyboard():
         ]
     ])
     return keyboard
-
-# ================= HANDLERLAR =================
 
 @router.message(Command("start", "restart"))
 async def start_cmd(message: Message, state: FSMContext):
@@ -163,7 +157,7 @@ async def restart_inline(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-# ================= AIOHTTP WEB SERVER (RENDER UCHUN) =================
+# ================= AIOHTTP WEB SERVER =================
 async def handle_ping(request):
     return web.Response(text="Bot live holatda ishlamoqda!")
 
@@ -179,7 +173,6 @@ async def start_web_server():
 
 async def main():
     await start_web_server()
-    # Eski xabarlar oqimini tozalash va ziddiyatni oldini olish
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
