@@ -1,5 +1,6 @@
 import os
 import asyncio
+import aiohttp
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
@@ -7,15 +8,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
-import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8995479536:AAEkjDyAB_JsFmkQZ5jvEvmNaVxL897Dqi4"
-GEMINI_API_KEY = "AQ.Ab8RN6LdIolroDQpviPPWybZPsstGDCaWKpDyXC9d1o699nNlQ" # O'zingizning to'g'ri Google AI Studio API kalitingizni shu yerga yozing
-
-genai.configure(api_key=GEMINI_API_KEY)
-# To'g'ri va barqaror ishlaydigan model nomi
-model = genai.GenerativeModel('gemini-1.5-flash')
+# O'zingizda ishlayotgan AQ... bilan boshlanadigan kalitni shu yerga yozing:
+GEMINI_API_KEY = "AQ.Ab8RN6IngZNKyubahjkmoSsJ8t95po-WqbaGjZuGr91kg7jOHw"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -76,6 +73,35 @@ def get_counts_keyboard():
         ],
         [InlineKeyboardButton(text="🔙 Orqaga", callback_data="start_quiz")]
     ])
+
+# ================= GEMINI API ORQALI SO'ROV YUBORISH =================
+async def generate_gemini_content(prompt_text: str) -> str:
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "X-goog-api-key": GEMINI_API_KEY
+    }
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt_text}
+                ]
+            }
+        ]
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                try:
+                    return data["candidates"][0]["content"]["parts"][0]["text"]
+                except Exception:
+                    return "Javobni o'qishda xatolik yuz berdi."
+            else:
+                err_text = await response.text()
+                return f"API xatoligi ({response.status}): {err_text}"
 
 # ================= HANDLERLAR =================
 
@@ -200,8 +226,7 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
     """
     
     try:
-        response = model.generate_content(prompt)
-        test_text = response.text
+        test_text = await generate_gemini_content(prompt)
         
         if len(test_text) > 4000:
             for i in range(0, len(test_text), 4000):
@@ -219,7 +244,7 @@ async def process_count(callback: CallbackQuery, state: FSMContext):
         )
     except Exception as e:
         await callback.message.answer(
-            f"⚠️ Xatolik yuz berdi: {e}\nIltimos, API kalitingiz to'g'riligini tekshiring.",
+            f"⚠️ Xatolik yuz berdi: {e}",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="back_to_main")]
             ])
