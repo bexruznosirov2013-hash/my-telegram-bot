@@ -1,5 +1,6 @@
 import os
 import asyncio
+import json
 import aiohttp
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -7,12 +8,13 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.exceptions import TelegramBadRequest
 from aiohttp import web
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8995479536:AAEkjDyAB_JsFmkQZ5jvEvmNaVxL897Dqi4"
-# O'zingizda ishlayotgan AQ... bilan boshlanadigan kalitni shu yerga yozing:
-GEMINI_API_KEY = "AQ.Ab8RN6IngZNKyubahjkmoSsJ8t95po-WqbaGjZuGr91kg7jOHw"
+# Google AI Studio orqali olingan kalitingizni shu yerga yozing
+GEMINI_API_KEY = "AQ.Ab8RN6LisjWLkSUx2d6AxvDpBxFudWJbCZ0R_x9b0QOKGf5JnQ"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -23,7 +25,7 @@ class QuizState(StatesGroup):
     choosing_subject = State()
     choosing_grade = State()
     choosing_count = State()
-    generating = State()
+    playing_quiz = State()
 
 # ================= MENYULAR =================
 
@@ -68,24 +70,35 @@ def get_counts_keyboard():
             InlineKeyboardButton(text="10 ta", callback_data="count_10")
         ],
         [
-            InlineKeyboardButton(text="15 ta", callback_data="count_15"),
-            InlineKeyboardButton(text="20 ta", callback_data="count_20")
-        ],
-        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="start_quiz")]
+            InlineKeyboardButton(text="🔙 Orqaga", callback_data="start_quiz")]
     ])
 
-# ================= GEMINI API ORQALI SO'ROV YUBORISH =================
-async def generate_gemini_content(prompt_text: str) -> str:
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+# ================= GEMINI API ORQALI JSON FORMATDA SAVOL OLISH =================
+async def generate_quiz_questions(subject: str, grade: str, count: str):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
     headers = {
         "Content-Type": "application/json",
         "X-goog-api-key": GEMINI_API_KEY
     }
+    
+    prompt = f"""
+    Siz professional maktab o'qituvchisisiz. {grade}-sinf "{subject}" fanidan o'quvchilar uchun {count} ta test tuzing.
+    Javobni FAQAT quyidagi JSON formatda qaytaring, hech qanday qo'shimcha matn yoki markdown belgilarisiz (`json` so'zini ham yozmang):
+    [
+      {{
+        "question": "Savol matni?",
+        "options": ["Variant 1", "Variant 2", "Variant 3", "Variant 4"],
+        "correct_index": 0
+      }}
+    ]
+    "correct_index" — to'g'ri javobning "options" massividagi indeksi (0 dan 3 gacha). Variantlar soni aniq 4 ta bo'lsin.
+    """
+    
     payload = {
         "contents": [
             {
                 "parts": [
-                    {"text": prompt_text}
+                    {"text": prompt}
                 ]
             }
         ]
@@ -96,12 +109,15 @@ async def generate_gemini_content(prompt_text: str) -> str:
             if response.status == 200:
                 data = await response.json()
                 try:
-                    return data["candidates"][0]["content"]["parts"][0]["text"]
-                except Exception:
-                    return "Javobni o'qishda xatolik yuz berdi."
+                    raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    # JSON formatini tozalash
+                    clean_text = raw_text.replace("```json", "").replace("```", "").strip()
+                    return json.loads(clean_text)
+                except Exception as e:
+                    print(f"Parsing xatoligi: {e}")
+                    return None
             else:
-                err_text = await response.text()
-                return f"API xatoligi ({response.status}): {err_text}"
+                return None
 
 # ================= HANDLERLAR =================
 
@@ -109,7 +125,7 @@ async def generate_gemini_content(prompt_text: str) -> str:
 async def start_cmd(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "✨ **Assalomu alaykum! Maktab fanlaridan sun'iy intellekt yordamida test tuzuvchi professional botga xush kelibsiz.**\n\n"
+        "✨ **Assalomu alaykum! Maktab fanlaridan viktorina (Quiz) botiga xush kelibsiz.**\n\n"
         "Kerakli bo'limni tanlang:",
         reply_markup=get_main_menu(),
         parse_mode="Markdown"
@@ -121,7 +137,7 @@ async def help_cmd(message: Message, state: FSMContext):
     await message.answer(
         "ℹ️ **Bot haqida ma'lumot (Help):**\n\n"
         "Ushbu bot maktab o'quvchilari va o'qituvchilari uchun mo'ljallangan. "
-        "Google Gemini AI texnologiyasi yordamida istalgan fan va sinf uchun sifatli testlar hamda ularning javoblar kalitini tuzib beradi.\n\n"
+        "Siz istalgan fan va sinfni tanlab, xuddi @QuizBot kabi viktorina savollarini qabul qilishingiz mumkin.\n\n"
         "**Buyruqlar:**\n"
         "/start - Botni qayta ishga tushirish\n"
         "/restart - Asosiy menyuga qaytish\n"
@@ -135,7 +151,7 @@ async def help_cb(callback: CallbackQuery):
     await callback.message.edit_text(
         "ℹ️ **Bot haqida ma'lumot:**\n\n"
         "Ushbu bot maktab o'quvchilari va o'qituvchilari uchun mo'ljallangan. "
-        "Google Gemini AI texnologiyasi yordamida istalgan fan va sinf uchun sifatli testlar hamda ularning javoblar kalitini tuzib beradi.",
+        "Siz istalgan fan va sinfni tanlab, xuddi @QuizBot kabi viktorina savollarini qabul qilishingiz mumkin.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")]
         ]),
@@ -205,51 +221,49 @@ async def process_grade(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("count_"), QuizState.choosing_count)
 async def process_count(callback: CallbackQuery, state: FSMContext):
     count = callback.data.split("_")[1]
-    await state.update_data(count=count)
-    await state.set_state(QuizState.generating)
-    
     data = await state.get_data()
     subject = data['subject']
     grade = data['grade']
     
     await callback.message.edit_text(
-        f"⏳ **Gemini AI** {grade}-sinf **{subject}** fanidan {count} ta test tayyorlamoqda, biroz kuting...",
+        f"⏳ **Gemini AI** {grade}-sinf **{subject}** fanidan {count} ta viktorina savollarini tayyorlamoqda...",
         parse_mode="Markdown"
     )
     
-    prompt = f"""
-    Siz professional maktab o'qituvchisisiz. 
-    {grade}-sinf "{subject}" fanidan o'quvchilar uchun {count} ta ko'p tanlovli (A, B, C, D variantli) test savolini tuzing.
-    Har bir savol ostida variantlar aniq ko'rsatilsin.
-    Testning oxirida barcha savollarning to'g'ri javoblarini kalit shaklida va qisqacha tushuntirishi bilan birga aniq yozib bering.
-    O'zbek tilida mukammal va tushunarli formatda chiqaring.
-    """
+    questions = await generate_quiz_questions(subject, grade, count)
     
-    try:
-        test_text = await generate_gemini_content(prompt)
-        
-        if len(test_text) > 4000:
-            for i in range(0, len(test_text), 4000):
-                await callback.message.answer(test_text[i:i+4000])
-        else:
-            await callback.message.answer(test_text)
+    if not questions:
+        await callback.message.answer(
+            "⚠️ Savollarni yaratishda xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.",
+            reply_markup=get_main_menu()
+        )
+        await state.clear()
+        return
+    
+    await callback.message.answer(f"🎉 **{grade}-sinf {subject} fanidan {len(questions)} ta test boshlandi!**")
+    
+    for q in questions:
+        try:
+            await bot.send_poll(
+                chat_id=callback.message.chat.id,
+                question=q["question"],
+                options=q["options"],
+                type="quiz",
+                correct_option_id=q["correct_index"],
+                is_anonymous=False
+            )
+            await asyncio.sleep(0.5) # Telegram limitlariga tushmaslik uchun kichik tanaffus
+        except Exception as e:
+            print(f"Poll yuborishda xato: {e}")
             
-        await callback.message.answer(
-            "🎉 **Test muvaffaqiyatli tuzildi!**",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Yana test tuzish", callback_data="start_quiz")],
-                [InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="back_to_main")]
-            ]),
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        await callback.message.answer(
-            f"⚠️ Xatolik yuz berdi: {e}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="back_to_main")]
-            ])
-        )
-    
+    await callback.message.answer(
+        "✅ **Barcha testlar yakunlandi!**",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Yana test tuzish", callback_data="start_quiz")],
+            [InlineKeyboardButton(text="🏠 Asosiy menyu", callback_data="back_to_main")]
+        ]),
+        parse_mode="Markdown"
+    )
     await state.clear()
     await callback.answer()
 
