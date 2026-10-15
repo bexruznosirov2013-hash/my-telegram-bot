@@ -11,7 +11,7 @@ import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8878301263:AAE4HbQGUPrQld6xcpdEh19y2ZdaZkpjay8"
-GEMINI_API_KEY = "AQ.Ab8RN6KnxIxtgGsURf4tzNFb62S92j78Xaidw64y1rZdXGVHrA"
+GEMINI_API_KEY = "AQ.Ab8RN6LsBVCO1yE-rTAviimhEZJgvzAFLWCceUpEFMW_DymmbQ"
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
