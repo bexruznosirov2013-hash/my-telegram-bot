@@ -10,7 +10,7 @@ from aiohttp import web
 import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
-BOT_TOKEN = "8869344185:AAEoxcxhCm2mi9SPpLYmWKqkAQi5nf7UC6s"
+BOT_TOKEN = "8878301263:AAE4HbQGUPrQld6xcpdEh19y2ZdaZkpjay8"
 GEMINI_API_KEY = "AQ.Ab8RN6KnxIxtgGsURf4tzNFb62S92j78Xaidw64y1rZdXGVHrA"
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -27,7 +27,7 @@ class QuizState(StatesGroup):
     choosing_count = State()
     generating = State()
 
-# Fanlar menyusi
+# Fanlar menyusi (Texnologiya va boshqa barcha fanlar)
 def get_subjects_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛠 Texnologiya", callback_data="sub_Texnologiya"), InlineKeyboardButton(text="📐 Matematika", callback_data="sub_Matematika")],
