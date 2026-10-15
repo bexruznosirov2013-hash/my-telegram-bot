@@ -84,7 +84,8 @@ async def generate_quiz_questions(subject: str, grade: str, count: str):
     
     prompt = f"""
     Siz professional maktab o'qituvchisisiz. {grade}-sinf "{subject}" fanidan o'quvchilar uchun {count} ta test tuzing.
-    Javobni FAQAT quyidagi JSON formatida qaytaring, boshqa hech qanday so'z yoki markdown belgi yozmang:
+    Javobni FAQAT toza JSON massiv ko'rinishida qaytaring. Hech qanday boshqa matn, izoh yoki markdown (```json ... ```) ishlatmang.
+    Format quyidagicha bo'lishi shart:
     [
       {{
         "question": "Savol matni?",
@@ -111,12 +112,26 @@ async def generate_quiz_questions(subject: str, grade: str, count: str):
                 data = await response.json()
                 try:
                     raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    clean_text = raw_text.replace("```json", "").replace("```", "").strip()
+                    
+                    # JSON matnini qidirib topish va tozalash
+                    clean_text = raw_text.strip()
+                    if "```json" in clean_text:
+                        clean_text = clean_text.split("```json")[1].split("```")[0].strip()
+                    elif "```" in clean_text:
+                        clean_text = clean_text.split("```")[1].split("```")[0].strip()
+                        
+                    start_idx = clean_text.find('[')
+                    end_idx = clean_text.rfind(']')
+                    if start_idx != -1 and end_idx != -1:
+                        clean_text = clean_text[start_idx:end_idx+1]
+                        
                     return json.loads(clean_text)
                 except Exception as e:
-                    print(f"Xatolik: {e}")
+                    print(f"JSON Parsing xatoligi: {e}, Raw text: {raw_text}")
                     return None
             else:
+                err_body = await response.text()
+                print(f"API HTTP xatosi {response.status}: {err_body}")
                 return None
 
 # ================= HANDLERLAR =================
