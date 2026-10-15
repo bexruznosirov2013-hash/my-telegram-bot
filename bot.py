@@ -11,7 +11,7 @@ import google.generativeai as genai
 
 # ================= KONFIGURATSIYA =================
 BOT_TOKEN = "8869344185:AAEoxcxhCm2mi9SPpLYmWKqkAQi5nf7UC6s"
-GEMINI_API_KEY = "AQ.Ab8RN6KjsR4PNtfpKCBtKOlc0zEwfw1XHPvjG1DU09TNzXJLvQ"  # <-- aistudio.google.com dan olgan YANGI kalitingizni shu yerga yozing!
+GEMINI_API_KEY = "AQ.Ab8RN6KnxIxtgGsURf4tzNFb62S92j78Xaidw64y1rZdXGVHrA"
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
